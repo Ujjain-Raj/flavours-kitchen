@@ -20,7 +20,8 @@
  .dc .top{display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px}
  .dc .ft{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;font-size:13px;color:var(--muted)}
  .add{background:var(--brand);color:#fff;border-radius:10px;padding:7px 16px;font-weight:800;font-size:14px}
- .stepper{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:2px;color:var(--text)}.stepper span{width:30px;height:30px;display:grid;place-items:center;background:#fff;border-radius:8px;font-weight:800}
+ .add{border:0;cursor:pointer}
+ .stepper{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:2px;color:var(--text)}.stepper button{width:32px;height:32px;border:0;background:#fff;border-radius:8px;font-size:18px;font-weight:800;cursor:pointer}.stepper b{min-width:14px;text-align:center}
  aside.panel{background:#fff;border-radius:20px;box-shadow:var(--shadow);padding:20px;position:sticky;top:84px;max-height:calc(100vh - 100px);overflow:auto}
  .live{display:flex;justify-content:space-between;background:#f3faf5;border-radius:10px;padding:10px 12px;font-weight:700;font-size:14px;margin:12px 0}
  .live i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:8px}
@@ -92,10 +93,10 @@ function renderOrder(m) {
   const sv = Math.round(sub * st.serviceChargePercent) / 100, gst = Math.round((sub + sv) * st.gstPercent) / 100, total = Math.round(sub + sv + gst);
   const n = cart.reduce((a, c) => a + c.qty, 0);
   const card = (x) => {
-    const ci = s.categories.findIndex((c) => c.id === x.categoryId), inCart = cart.find((c) => c.menuId === x.id && !c.note);
-    return `<button class="dc ${x.available ? '' : 'off'}" data-d="${esc(x.id)}"><div class="ph" style="background:${TINT[ci % TINT.length]}">${EMOJI[x.categoryId] || '🍽'}<span class="tag"><span class="diet ${x.diet}"></span>${DIETN[x.diet]}</span></div>
+    const ci = s.categories.findIndex((c) => c.id === x.categoryId), qty = cart.filter((c) => c.menuId === x.id).reduce((a, c) => a + c.qty, 0);
+    return `<div class="dc ${x.available ? '' : 'off'}"><div class="ph" style="background:${TINT[ci % TINT.length]}">${EMOJI[x.categoryId] || '🍽'}<span class="tag"><span class="diet ${x.diet}"></span>${DIETN[x.diet]}</span></div>
       <div class="bd"><div class="top"><span>${esc(x.name)}</span><span>${rs(x.price)}</span></div>
-      <div class="ft"><span>${esc((s.categories.find((c) => c.id === x.categoryId) || {}).name)}</span>${!x.available ? '<span class="pill red">Out</span>' : inCart ? `<span class="stepper"><span>${inCart.qty}</span></span>` : '<span class="add">+ Add</span>'}</div></div></button>`;
+      <div class="ft"><span>${esc((s.categories.find((c) => c.id === x.categoryId) || {}).name)}</span>${!x.available ? '<span class="pill red">Out</span>' : qty ? `<span class="stepper"><button data-sub="${esc(x.id)}" aria-label="Remove one">−</button><b>${qty}</b><button data-d="${esc(x.id)}" aria-label="Add one">+</button></span>` : `<button class="add" data-d="${esc(x.id)}">+ Add</button>`}</div></div></div>`;
   };
   const groups = cat === 'all' && !ql ? s.categories : [{ id: '_', name: ql ? 'Results' : (s.categories.find((c) => c.id === cat) || {}).name }];
   const sections = groups.map((c) => {
@@ -125,6 +126,10 @@ function renderOrder(m) {
   $$('[data-d]', m).forEach((b) => (b.onclick = () => {
     const x = s.menu.find((y) => y.id === b.dataset.d), ex = cart.find((c) => c.menuId === x.id && !c.note);
     if (ex) ex.qty++; else cart.push({ menuId: x.id, name: x.name, price: x.price, diet: x.diet, qty: 1, note: '' }); renderOrder(m);
+  }));
+  $$('[data-sub]', m).forEach((b) => (b.onclick = () => {
+    const i = cart.findIndex((c) => c.menuId === b.dataset.sub); if (i < 0) return;
+    if (--cart[i].qty < 1) cart.splice(i, 1); renderOrder(m);
   }));
   $$('[data-p]', m).forEach((b) => (b.onclick = () => { cart[+b.dataset.p].qty++; renderOrder(m); }));
   $$('[data-m]', m).forEach((b) => (b.onclick = () => { const c = cart[+b.dataset.m]; if (--c.qty < 1) cart.splice(+b.dataset.m, 1); renderOrder(m); }));
