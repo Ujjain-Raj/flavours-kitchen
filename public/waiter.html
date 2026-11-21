@@ -2,26 +2,39 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Waiter · Flavours Kitchen</title><link rel="stylesheet" href="shared.css">
 <style>
- .floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:14px}
- .tb{border-radius:var(--radius);padding:14px;border:2px solid var(--line);background:var(--panel);cursor:pointer;text-align:left;min-height:96px;display:flex;flex-direction:column;justify-content:space-between}
- .tb b{font-size:18px} .tb.free{border-color:var(--green)} .tb.occupied{border-color:var(--amber);background:#2b2214}
- .tb.ready{border-color:var(--blue);background:#14232f;animation:glow 1.5s infinite} .tb.bill{border-color:var(--purple);background:#221a2e} .tb.cleaning{border-color:var(--muted);opacity:.7}
- @keyframes glow{50%{box-shadow:0 0 0 4px rgba(90,169,240,.3)}}
- .order{display:grid;grid-template-columns:1fr 360px;height:calc(100vh - 62px)}
- .menu{overflow:auto;padding:12px} .side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
- .cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;position:sticky;top:-12px;background:var(--bg);padding-top:12px;z-index:5}
- .dishes{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
- .dish{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;text-align:left;min-height:84px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
- .dish:hover{border-color:var(--brand)} .dish.off{opacity:.35;pointer-events:none}
- .lines{flex:1;overflow:auto;padding:12px}
- .ln{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+ .floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;padding:18px 20px}
+ .tb{border-radius:var(--radius);padding:14px;border:2px solid var(--line);background:#fff;cursor:pointer;text-align:left;min-height:100px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--shadow)}
+ .tb b{font-size:18px} .tb.free{border-color:#bfe3cd} .tb.occupied{border-color:var(--amber);background:#fff4e2}
+ .tb.ready{border-color:var(--blue);background:#e8f2fb;animation:glow 1.5s infinite} .tb.bill{border-color:var(--purple);background:#f1eafb} .tb.cleaning{border-color:var(--line);opacity:.65}
+ @keyframes glow{50%{box-shadow:0 0 0 4px rgba(47,127,196,.25)}}
+ .layout{max-width:1240px;margin:0 auto;padding:16px 20px 40px;display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start}
+ .layout>main{min-width:0}
+ .bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+ .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:none}
+ .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:10px}
+ .dc{background:#fff;border-radius:16px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;text-align:left;border:0;padding:0;font:inherit;color:inherit}
+ .dc.off{opacity:.45;pointer-events:none}
+ .dc .ph{height:120px;display:grid;place-items:center;font-size:52px;position:relative}
+ .dc .tag{position:absolute;left:10px;top:10px;background:#fff;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;display:flex;gap:6px;align-items:center}
+ .dc .bd{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+ .dc .top{display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px}
+ .dc .ft{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;font-size:13px;color:var(--muted)}
+ .add{background:var(--brand);color:#fff;border-radius:10px;padding:7px 16px;font-weight:800;font-size:14px}
+ .stepper{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:2px;color:var(--text)}.stepper span{width:30px;height:30px;display:grid;place-items:center;background:#fff;border-radius:8px;font-weight:800}
+ aside.panel{background:#fff;border-radius:20px;box-shadow:var(--shadow);padding:20px;position:sticky;top:84px;max-height:calc(100vh - 100px);overflow:auto}
+ .live{display:flex;justify-content:space-between;background:#f3faf5;border-radius:10px;padding:10px 12px;font-weight:700;font-size:14px;margin:12px 0}
+ .live i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:8px}
+ .li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+ .li .q{background:var(--panel2);border-radius:8px;padding:3px 8px;font-weight:800;font-size:13px}
  .qty{display:flex;align-items:center;gap:6px}.qty button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:18px}
- .tot{padding:12px;border-top:1px solid var(--line);display:grid;gap:8px}
+ .sum{background:var(--panel2);border-radius:14px;padding:14px;margin:14px 0;display:grid;gap:6px;color:var(--muted)}
+ .sum .r{display:flex;justify-content:space-between}.sum .t{color:var(--text);font-weight:800;font-size:20px;margin-top:6px}.sum .t b{color:var(--brand)}
+ .big{width:100%;background:var(--brand);color:#fff;border:0;border-radius:14px;padding:15px;font-size:17px;font-weight:800;cursor:pointer}.big:disabled{opacity:.45;cursor:not-allowed}
  .ready-card{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px}
- @media(max-width:820px){.order{grid-template-columns:1fr;height:auto}.side{border-left:0;border-top:1px solid var(--line);position:sticky;bottom:0;max-height:50vh}.menu{overflow:visible}}
+ @media(max-width:900px){.layout{grid-template-columns:1fr}aside.panel{position:static;max-height:none}}
 </style></head><body>
 <div class="topbar">
- <div class="brand"><span id="logo"></span>Waiter</div>
+ <div class="brand"><span id="logo"></span>Flavours Kitchen</div>
  <div class="tabs"><button class="tab on" data-v="floor">Floor</button><button class="tab" data-v="ready">Ready <span id="rc" class="pill blue hidden"></span></button><button class="tab" data-v="take">Takeaway</button><button class="tab" data-v="stats">My shift</button></div>
  <div class="grow"></div><span id="conn"></span><span class="muted hide-sm" data-user></span><button class="btn small" data-logout>Sign out</button>
 </div>
@@ -29,7 +42,10 @@
 <script src="shared.js"></script>
 <script>
 $('#logo').innerHTML = LOGO;
-let v = 'floor', cur = null /* {kind:'table'|'take', id} */, cart = [], cat = null, q = '', vegOnly = false, lastReady = -1;
+const EMOJI = { tiffins: '🫓', meals: '🍛', biryanis: '🍚', pulaos: '🍚', juices: '🥤', chat: '🥗', shakes: '🥛', snacks: '🥟', chai: '☕', chinese: '🥡', fish: '🐟', curry: '🍲' };
+const TINT = ['#fde9d3', '#e8f3dd', '#fbe3e0', '#e6eefb', '#f6eadb', '#efe6f8'];
+const DIETN = { veg: 'Veg', nonveg: 'Non-veg', egg: 'Egg' };
+let v = 'floor', cur = null /* {kind:'table'|'take', id} */, cart = [], cat = 'all', q = '', dietF = 'all', lastReady = -1;
 $$('[data-v]').forEach((b) => (b.onclick = () => { v = b.dataset.v; if (v === 'take') { cur = { kind: 'take' }; cart = []; v = 'order'; } else cur = null; render(); }));
 const S = () => FK.state;
 const tname = (id) => (S().tables.find((t) => t.id === id) || { name: id }).name;
@@ -65,35 +81,47 @@ function render() {
 }
 
 function renderOrder(m) {
-  const s = S(), o = curOrder();
-  if (!cat || !s.categories.find((c) => c.id === cat)) cat = s.categories[0] && s.categories[0].id;
+  const s = S(), o = curOrder(), st = s.settings;
+  if (cat !== 'all' && !s.categories.find((c) => c.id === cat)) cat = 'all';
   const ql = q.trim().toLowerCase();
-  const list = s.menu.filter((x) => (ql ? x.name.toLowerCase().includes(ql) : x.categoryId === cat) && (!vegOnly || x.diet === 'veg'));
-  const title = cur.kind === 'take' ? 'New takeaway' : tname(cur.id);
-  const cartTotal = cart.reduce((a, c) => a + c.price * c.qty, 0);
+  const list = s.menu.filter((x) => (dietF === 'all' || x.diet === dietF) && (cat === 'all' || x.categoryId === cat) && (!ql || x.name.toLowerCase().includes(ql)));
+  const cnt = (d) => s.menu.filter((x) => d === 'all' || x.diet === d).length;
+  const title = cur.kind === 'take' ? 'Takeaway' : tname(cur.id);
   const live = o ? o.items.filter((i) => i.status !== 'void') : [];
-  m.innerHTML = `<div class="order"><div class="menu">
-    <div class="row" style="margin-bottom:8px"><button class="btn small" id="back">← Floor</button><h2 class="grow">${esc(title)}</h2></div>
-    <div class="row" style="margin-bottom:8px"><input id="q" placeholder="Search dishes…" value="${esc(q)}" class="grow"><button class="btn small ${vegOnly ? 'green' : ''}" id="veg">🟢 Veg only</button></div>
-    <div class="cats">${s.categories.map((c) => `<button class="tab ${c.id === cat && !ql ? 'on' : ''}" data-c="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>
-    <div class="dishes">${list.map((x) => `<button class="dish ${x.available ? '' : 'off'}" data-d="${esc(x.id)}"><div>${dietDot(x.diet)} <b>${esc(x.name)}</b></div><div class="row between"><span style="color:var(--brand);font-weight:700">${rs(x.price)}</span>${x.available ? '' : '<span class="pill red">Out</span>'}</div></button>`).join('') || '<p class="muted">No dishes</p>'}</div>
-   </div><div class="side">
-    <div class="lines">
-     ${cur.kind === 'take' && !o ? `<label style="margin-top:0">Customer name / phone</label><input id="cust" placeholder="Optional" value="${esc(cur.customer || '')}">` : ''}
-     <h3 style="margin:10px 0 4px">New items</h3>
-     ${cart.length ? cart.map((c, i) => `<div class="ln"><div class="grow">${dietDot(c.diet)} ${esc(c.name)}<input data-n="${i}" placeholder="Note (less spicy…)" value="${esc(c.note)}" style="margin-top:4px;min-height:32px;padding:4px 8px;font-size:13px"></div>
-        <div class="qty"><button data-m="${i}">−</button><b>${c.qty}</b><button data-p="${i}">+</button></div></div>`).join('') : '<p class="muted">Tap dishes to add</p>'}
-     ${live.length ? `<h3 style="margin:16px 0 4px">Sent to kitchen</h3>${live.map((i) => `<div class="ln"><div class="grow">${dietDot(i.diet)} ${i.qty} × ${esc(i.name)}${i.note ? `<div class="muted" style="font-size:12px">${esc(i.note)}</div>` : ''}</div><span class="pill ${{ new: 'amber', cooking: 'blue', ready: 'green', served: '' }[i.status]}">${i.status}</span>${['new', 'cooking'].includes(i.status) ? `<button class="btn small red" data-v2="${esc(i.id)}" title="Void item">✕</button>` : ''}</div>`).join('')}` : ''}
-    </div>
-    <div class="tot">
-     ${o ? `<div class="row between"><span class="muted">Running bill</span><b>${rs(o.totals.total)}</b></div>` : ''}
-     <button class="btn primary" id="send" ${cart.length ? '' : 'disabled'}>Send to kitchen${cart.length ? ' · ' + rs(cartTotal) : ''}</button>
-     ${o ? `<div class="row"><button class="btn grow" id="bill">Bill / Pay</button>${cur.kind === 'table' ? '<button class="btn grow" id="move">Transfer</button>' : ''}</div>` : ''}
-    </div></div></div>`;
+  const sub = cart.reduce((a, c) => a + c.price * c.qty, 0) + (o ? o.totals.subtotal : 0);
+  const sv = Math.round(sub * st.serviceChargePercent) / 100, gst = Math.round((sub + sv) * st.gstPercent) / 100, total = Math.round(sub + sv + gst);
+  const n = cart.reduce((a, c) => a + c.qty, 0);
+  const card = (x) => {
+    const ci = s.categories.findIndex((c) => c.id === x.categoryId), inCart = cart.find((c) => c.menuId === x.id && !c.note);
+    return `<button class="dc ${x.available ? '' : 'off'}" data-d="${esc(x.id)}"><div class="ph" style="background:${TINT[ci % TINT.length]}">${EMOJI[x.categoryId] || '🍽'}<span class="tag"><span class="diet ${x.diet}"></span>${DIETN[x.diet]}</span></div>
+      <div class="bd"><div class="top"><span>${esc(x.name)}</span><span>${rs(x.price)}</span></div>
+      <div class="ft"><span>${esc((s.categories.find((c) => c.id === x.categoryId) || {}).name)}</span>${!x.available ? '<span class="pill red">Out</span>' : inCart ? `<span class="stepper"><span>${inCart.qty}</span></span>` : '<span class="add">+ Add</span>'}</div></div></button>`;
+  };
+  const groups = cat === 'all' && !ql ? s.categories : [{ id: '_', name: ql ? 'Results' : (s.categories.find((c) => c.id === cat) || {}).name }];
+  const sections = groups.map((c) => {
+    const l = c.id === '_' ? list : list.filter((x) => x.categoryId === c.id);
+    return l.length ? `<div class="eyebrow" style="margin-top:18px">${esc(c.name)}</div><div class="cards">${l.map(card).join('')}</div>` : '';
+  }).join('');
+  m.innerHTML = `<div class="layout"><main>
+    <div class="bar"><button class="btn small" id="back">← Floor</button><span class="chip" style="cursor:default">🪑 ${esc(title)}</span><input id="q" class="grow" placeholder="Search dishes…" value="${esc(q)}" style="max-width:420px;border-radius:99px"></div>
+    <div class="chips">${[['all', 'All Dishes'], ['veg', 'Vegetarian'], ['nonveg', 'Non-Veg'], ['egg', 'Egg']].map(([k, nm]) => `<button class="chip ${dietF === k ? 'on' : ''}" data-f="${k}">${k !== 'all' ? `<span class="diet ${k}"></span>` : ''}${nm} <span class="n">${cnt(k)}</span></button>`).join('')}</div>
+    <div class="chips"><button class="chip ${cat === 'all' ? 'on' : ''}" data-c="all">All categories</button>${s.categories.map((c) => `<button class="chip ${cat === c.id ? 'on' : ''}" data-c="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>
+    ${sections || '<p class="muted" style="padding:40px 0;text-align:center">No dishes</p>'}
+   </main><aside class="panel">
+    <div class="row between"><h2 style="font-size:20px">🧾 Current Table Order</h2><span class="chip" style="cursor:default;padding:3px 10px;font-size:12px">${esc(title)}</span></div>
+    <div class="live"><span><i></i>Kitchen Active</span><span class="muted">${n} item${n === 1 ? '' : 's'} in cart</span></div>
+    ${cur.kind === 'take' && !o ? `<input id="cust" placeholder="Customer name / phone (optional)" value="${esc(cur.customer || '')}" style="margin-bottom:6px">` : ''}
+    ${cart.map((c, i) => `<div class="li"><span class="q">${c.qty}x</span><div class="grow"><b>${esc(c.name)}</b><input data-n="${i}" placeholder="Note (less spicy…)" value="${esc(c.note)}" style="margin-top:4px;min-height:32px;padding:4px 8px;font-size:13px"></div>
+        <div class="qty"><button data-m="${i}">−</button><button data-p="${i}">+</button></div><b>${rs(c.price * c.qty)}</b></div>`).join('') || (live.length ? '' : '<p class="muted" style="padding:10px 0">Tap dishes to add them.</p>')}
+    ${live.length ? `<div class="eyebrow" style="margin:14px 0 2px">Sent to kitchen</div>${live.map((i) => `<div class="li"><span class="q">${i.qty}x</span><div class="grow">${esc(i.name)}${i.note ? `<div class="muted" style="font-size:12px">${esc(i.note)}</div>` : ''}</div><span class="pill ${{ new: 'amber', cooking: 'blue', ready: 'green', served: '' }[i.status]}">${i.status}</span>${['new', 'cooking'].includes(i.status) ? `<button class="btn small red" data-v2="${esc(i.id)}" title="Void item">✕</button>` : ''}</div>`).join('')}` : ''}
+    <div class="sum"><div class="r"><span>Subtotal</span><span>${rs(sub)}</span></div><div class="r"><span>GST (${st.gstPercent}%)</span><span>${rs(gst)}</span></div>${st.serviceChargePercent ? `<div class="r"><span>Service Charge (${st.serviceChargePercent}%)</span><span>${rs(sv)}</span></div>` : ''}<div class="r t"><span>Order Total</span><b>${rs(total)}</b></div></div>
+    <button class="big" id="send" ${cart.length ? '' : 'disabled'}>Send to Kitchen (${n})</button>
+    ${o ? `<div class="row" style="margin-top:10px"><button class="btn grow" id="bill">Bill / Pay</button>${cur.kind === 'table' ? '<button class="btn grow" id="move">Transfer</button>' : ''}</div>` : ''}
+   </aside></div>`;
   $('#back').onclick = () => { v = 'floor'; cur = null; render(); };
-  $('#q').oninput = (e) => { q = e.target.value; const p = e.target.selectionStart; renderOrder(m); const n = $('#q'); n.focus(); n.setSelectionRange(p, p); };
-  $('#veg').onclick = () => { vegOnly = !vegOnly; renderOrder(m); };
-  $$('[data-c]', m).forEach((b) => (b.onclick = () => { cat = b.dataset.c; q = ''; renderOrder(m); }));
+  $('#q').oninput = (e) => { q = e.target.value; const p = e.target.selectionStart; renderOrder(m); const nn = $('#q'); nn.focus(); nn.setSelectionRange(p, p); };
+  $$('[data-f]', m).forEach((b) => (b.onclick = () => { dietF = b.dataset.f; renderOrder(m); }));
+  $$('[data-c]', m).forEach((b) => (b.onclick = () => { cat = b.dataset.c; renderOrder(m); }));
   $$('[data-d]', m).forEach((b) => (b.onclick = () => {
     const x = s.menu.find((y) => y.id === b.dataset.d), ex = cart.find((c) => c.menuId === x.id && !c.note);
     if (ex) ex.qty++; else cart.push({ menuId: x.id, name: x.name, price: x.price, diet: x.diet, qty: 1, note: '' }); renderOrder(m);
