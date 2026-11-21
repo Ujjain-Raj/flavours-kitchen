@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen Display · Flavours Kitchen</title><link rel="stylesheet" href="shared.css">
+<style>
+ .board{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;padding:14px;align-content:start}
+ .tk{border-radius:var(--radius);background:var(--panel);border:2px solid var(--green);overflow:hidden;display:flex;flex-direction:column}
+ .tk.warn{border-color:var(--amber)} .tk.late{border-color:var(--red);animation:pulse 1.4s infinite}
+ @keyframes pulse{50%{box-shadow:0 0 0 4px rgba(239,91,76,.3)}}
+ .tk header{padding:10px 12px;display:flex;justify-content:space-between;align-items:center;background:var(--panel2)}
+ .tk header b{font-size:20px} .tk ul{list-style:none;margin:0;padding:8px 12px;flex:1}
+ .tk li{padding:5px 0;font-size:17px;font-weight:600;display:flex;gap:8px;align-items:flex-start}
+ .tk li small{display:block;color:var(--amber);font-weight:500;font-size:13px}
+ .tk footer{padding:10px;display:flex;gap:8px}.tk footer .btn{flex:1;min-height:50px;font-size:16px}
+ .st-cooking{outline:0} .badge{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--blue);color:#06121f;font-weight:800}
+ .empty{grid-column:1/-1;text-align:center;padding:80px 0;color:var(--muted);font-size:20px}
+ .stock{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;padding:14px}
+ .stock .btn.out{border-color:var(--red);color:var(--red);text-decoration:line-through}
+</style></head><body>
+<div class="topbar">
+ <div class="brand"><span id="logo"></span>Kitchen</div>
+ <div class="tabs" id="stations"></div>
+ <div class="grow"></div>
+ <div class="tabs"><button class="tab on" data-view="live">Live</button><button class="tab" data-view="stock">Stock</button><button class="tab" data-view="hist">History</button></div>
+ <button class="btn small" id="snd" title="Toggle sound">🔔</button><span id="conn"></span>
+ <span class="muted hide-sm" data-user></span><button class="btn small" data-logout>Sign out</button>
+</div>
+<div id="view"></div>
+<script src="shared.js"></script>
+<script>
+$('#logo').innerHTML = LOGO;
+let station = 'all', view = 'live', sound = localStorage.getItem('fk_snd') !== '0', seen = new Set(), first = true;
+$('#snd').style.opacity = sound ? 1 : .4;
+$('#snd').onclick = () => { sound = !sound; localStorage.setItem('fk_snd', sound ? 1 : 0); $('#snd').style.opacity = sound ? 1 : .4; if (sound) beep(); };
+$$('[data-view]').forEach((b) => (b.onclick = () => { view = b.dataset.view; $$('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); render(); }));
+function beep() {
+  try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.setValueAtTime(.2, c.currentTime); g.gain.exponentialRampToValueAtTime(.001, c.currentTime + .5); o.start(); o.stop(c.currentTime + .5); } catch {}
+}
+function tickets() {
+  const out = {};
+  for (const o of FK.state.orders) for (const i of o.items) {
+    if (!['new', 'cooking'].includes(i.status) || (station !== 'all' && i.station !== station)) continue;
+    const k = `${o.id}|${i.kot}|${i.station}`;
+    (out[k] = out[k] || { key: k, o, kot: i.kot, station: i.station, sentAt: i.sentAt, items: [] }).items.push(i);
+  }
+  return Object.values(out).sort((a, b) => a.sentAt - b.sentAt);
+}
+const label = (o) => o.type === 'takeaway' ? 'Takeaway' : (FK.state.tables.find((t) => t.id === o.tableId) || { name: o.tableId }).name;
+function render() {
+  const s = FK.state; if (!s) return;
+  $('#stations').innerHTML = [{ id: 'all', name: 'All' }, ...s.settings.stations].map((x) => `<button class="tab ${x.id === station ? 'on' : ''}" data-st="${esc(x.id)}">${esc(x.name)}</button>`).join('');
+  $$('[data-st]').forEach((b) => (b.onclick = () => { station = b.dataset.st; render(); }));
+  const v = $('#view');
+  if (view === 'live') {
+    const ts = tickets();
+    v.innerHTML = '<div class="board">' + (ts.length ? ts.map((t) => {
+      const m = mins(t.sentAt), cls = m >= 15 ? 'late' : m >= 8 ? 'warn' : '', cooking = t.items.every((i) => i.status === 'cooking');
+      return `<div class="tk ${cls}"><header><div><b>${esc(label(t.o))}</b> <span class="muted">KOT ${t.kot}</span></div><div><span class="badge" style="${cooking ? '' : 'background:var(--amber)'}">${cooking ? 'COOKING' : 'NEW'}</span> <b>${m}m</b></div></header>
+      <ul>${t.items.map((i) => `<li>${dietDot(i.diet)}<span>${i.qty} × ${esc(i.name)}${i.note ? `<small>⚠ ${esc(i.note)}</small>` : ''}</span></li>`).join('')}</ul>
+      <div class="muted" style="padding:0 12px 6px;font-size:12px">${esc(s.settings.stations.find((x) => x.id === t.station)?.name || t.station)} · ${esc(t.o.waiter || '')}</div>
+      <footer>${cooking ? '' : `<button class="btn primary" data-a="cooking" data-k="${esc(t.key)}">Start</button>`}<button class="btn green" data-a="ready" data-k="${esc(t.key)}">Ready</button></footer></div>`;
+    }).join('') : '<div class="empty">🍳 No pending tickets</div>') + '</div>';
+    $$('[data-a]', v).forEach((b) => (b.onclick = () => { const [oid, kot, st] = b.dataset.k.split('|'); act(api('POST', `/api/orders/${oid}/status`, { status: b.dataset.a, kot: +kot, station: st })); }));
+    // beep on new tickets
+    const keys = new Set(ts.map((t) => t.key)); let fresh = false;
+    for (const k of keys) if (!seen.has(k)) fresh = true;
+    if (fresh && !first && sound) beep();
+    seen = keys; first = false;
+  } else if (view === 'stock') {
+    v.innerHTML = '<p class="muted" style="padding:14px 14px 0">Tap a dish to mark it out of stock — it disappears from the waiter menu instantly.</p>' + s.categories.map((c) => `<h3 style="padding:14px 14px 0">${esc(c.name)}</h3><div class="stock">${s.menu.filter((m) => m.categoryId === c.id).map((m) => `<button class="btn ${m.available ? '' : 'out'}" data-m="${esc(m.id)}">${dietDot(m.diet)} ${esc(m.name)}</button>`).join('')}</div>`).join('');
+    $$('[data-m]', v).forEach((b) => (b.onclick = () => { const m = s.menu.find((x) => x.id === b.dataset.m); act(api('POST', `/api/menu/${m.id}/available`, { available: !m.available })); }));
+  } else {
+    const done = []; const per = {};
+    for (const o of s.orders) for (const i of o.items) if (i.readyAt && i.sentAt) { done.push({ o, i }); const e = (per[i.name] = per[i.name] || { n: 0, t: 0 }); e.n++; e.t += i.readyAt - i.sentAt; }
+    done.sort((a, b) => b.i.readyAt - a.i.readyAt);
+    v.innerHTML = `<div style="padding:14px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+     <div class="card"><h3>Average prep time</h3><table class="t"><tr><th>Dish</th><th>Count</th><th>Avg</th></tr>${Object.entries(per).sort((a, b) => b[1].n - a[1].n).map(([n, e]) => `<tr><td>${esc(n)}</td><td>${e.n}</td><td>${(e.t / e.n / 60000).toFixed(1)} min</td></tr>`).join('') || '<tr><td class="muted" colspan="3">No finished dishes yet</td></tr>'}</table></div>
+     <div class="card"><h3>Recent tickets</h3><table class="t">${done.slice(0, 40).map(({ o, i }) => `<tr><td>${esc(label(o))}</td><td>${i.qty} × ${esc(i.name)}</td><td class="muted">${((i.readyAt - i.sentAt) / 60000).toFixed(1)}m</td><td><button class="btn small" data-r="${esc(o.id)}|${esc(i.id)}">Recall</button></td></tr>`).join('') || '<tr><td class="muted">Nothing yet</td></tr>'}</table></div></div>`;
+    $$('[data-r]', v).forEach((b) => (b.onclick = () => { const [oid, iid] = b.dataset.r.split('|'); act(api('POST', `/api/orders/${oid}/status`, { status: 'cooking', itemIds: [iid] })); }));
+  }
+}
+setInterval(() => FK.state && view === 'live' && render(), 30000); // keep ticket ages fresh
+boot({ roles: ['kitchen', 'admin'], onState: render });
+</script></body></html>

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin · Flavours Kitchen</title><link rel="stylesheet" href="shared.css">
+<style>
+ main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:14px}
+ .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+ .kpi b{font-size:26px;color:var(--brand);display:block}
+ .bar{height:10px;border-radius:5px;background:var(--brand);min-width:2px}
+ .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+ pre.prev{background:#fff;color:#000;padding:10px;border-radius:8px;font:12px/1.25 monospace;overflow:auto;max-height:50vh}
+ .chk{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--text);text-transform:none;letter-spacing:0;margin:4px 0}.chk input{width:auto;min-height:0}
+</style></head><body>
+<div class="topbar">
+ <div class="brand"><span id="logo"></span>Admin</div>
+ <div class="tabs" id="tabs"></div><div class="grow"></div><span id="conn"></span>
+ <span class="muted hide-sm" data-user></span><button class="btn small" data-logout>Sign out</button>
+</div>
+<main id="main"></main>
+<script src="shared.js"></script>
+<script>
+$('#logo').innerHTML = LOGO;
+const TABS = [['home', 'Dashboard'], ['menu', 'Menu'], ['tables', 'Tables'], ['staff', 'Staff'], ['print', 'Printers'], ['settings', 'Settings'], ['reports', 'Reports']];
+let tab = localStorage.getItem('fk_tab') || 'home', range = 'today', menuCat = 'all', menuQ = '';
+const S = () => FK.state;
+const field = (label, id, val = '', attrs = '') => `<label>${label}</label><input id="${id}" value="${esc(val)}" ${attrs}>`;
+async function go(t) { tab = t; localStorage.setItem('fk_tab', t); await render(); }
+
+async function render() {
+  if (!S()) return;
+  $('#tabs').innerHTML = TABS.map(([k, n]) => `<button class="tab ${k === tab ? 'on' : ''}" data-t="${k}">${n}</button>`).join('');
+  $$('[data-t]').forEach((b) => (b.onclick = () => go(b.dataset.t)));
+  const fn = { home, menu, tables, staff, print: printers, settings, reports }[tab];
+  await fn($('#main'));
+}
+
+function home(m) {
+  const s = S(), open = s.orders.filter((o) => o.status === 'open'), paid = s.orders.filter((o) => o.status === 'paid' && new Date(o.closedAt).toDateString() === new Date().toDateString());
+  const sales = paid.reduce((a, o) => a + o.totals.total, 0);
+  const cnt = (st) => s.tables.filter((t) => t.status === st).length;
+  const kitchen = open.flatMap((o) => o.items).filter((i) => ['new', 'cooking'].includes(i.status)).length;
+  m.innerHTML = `<div class="kpis">
+   <div class="card kpi"><span class="muted">Today's sales</span><b>${rs(sales)}</b>${paid.length} bills</div>
+   <div class="card kpi"><span class="muted">Open orders</span><b>${open.length}</b>${rs(open.reduce((a, o) => a + o.totals.total, 0))} running</div>
+   <div class="card kpi"><span class="muted">Kitchen load</span><b>${kitchen}</b>items in queue</div>
+   <div class="card kpi"><span class="muted">Tables</span><b>${s.tables.length - cnt('free') - cnt('cleaning')}/${s.tables.length}</b>in use · ${cnt('cleaning')} to clean</div></div>
+   <div class="card"><h3>Live tables</h3><div class="row wrap" style="margin-top:10px">${s.tables.map((t) => `<span class="pill ${{ free: 'green', occupied: 'amber', ready: 'blue', bill: 'red', cleaning: '' }[t.status]}">${esc(t.name)} · ${t.status}</span>`).join('')}</div></div>
+   <div class="card"><h3>Open orders</h3><div class="tablewrap"><table class="t"><tr><th>#</th><th>Where</th><th>Waiter</th><th>Items</th><th>Age</th><th style="text-align:right">Total</th></tr>
+   ${open.map((o) => `<tr><td>${o.no}</td><td>${o.type === 'takeaway' ? 'Takeaway ' + esc(o.customer) : esc((s.tables.find((t) => t.id === o.tableId) || {}).name)}</td><td>${esc(o.waiter)}</td><td>${o.items.filter((i) => i.status !== 'void').length}</td><td>${mins(o.created)}m</td><td style="text-align:right">${rs(o.totals.total)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No open orders</td></tr>'}</table></div></div>`;
+}
+
+function menu(m) {
+  const s = S(), ql = menuQ.toLowerCase();
+  const items = s.menu.filter((x) => (menuCat === 'all' || x.categoryId === menuCat) && (!ql || x.name.toLowerCase().includes(ql)));
+  m.innerHTML = `<div class="card"><div class="row wrap"><h3 class="grow">Menu <span class="muted">(${s.menu.length} dishes)</span></h3>
+    <input id="mq" placeholder="Search" value="${esc(menuQ)}" style="width:180px"><button class="btn primary" id="addm">+ Dish</button><button class="btn" id="addc">+ Category</button><button class="btn" id="imp">CSV import</button><button class="btn" id="exp">CSV export</button></div>
+   <div class="tabs" style="margin:12px 0;flex-wrap:wrap"><button class="tab ${menuCat === 'all' ? 'on' : ''}" data-mc="all">All</button>${s.categories.map((c) => `<button class="tab ${menuCat === c.id ? 'on' : ''}" data-mc="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>
+   <p class="muted" style="margin:0 0 8px">Prices and dish names were seeded as placeholders from your category sheet — edit them here.</p>
+   <div class="tablewrap"><table class="t"><tr><th></th><th>Dish</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr>
+   ${items.map((x) => `<tr><td>${dietDot(x.diet)}</td><td>${esc(x.name)}</td><td class="muted">${esc((s.categories.find((c) => c.id === x.categoryId) || {}).name)}</td><td>${rs(x.price)}</td>
+    <td><button class="btn small ${x.available ? '' : 'red'}" data-av="${esc(x.id)}">${x.available ? 'In stock' : 'Out'}</button></td>
+    <td style="text-align:right"><button class="btn small" data-e="${esc(x.id)}">Edit</button> <button class="btn small red" data-x="${esc(x.id)}">Delete</button></td></tr>`).join('')}</table></div></div>`;
+  $('#mq').oninput = (e) => { menuQ = e.target.value; const p = e.target.selectionStart; menu(m); const n = $('#mq'); n.focus(); n.setSelectionRange(p, p); };
+  $$('[data-mc]', m).forEach((b) => (b.onclick = () => { menuCat = b.dataset.mc; menu(m); }));
+  $$('[data-av]', m).forEach((b) => (b.onclick = () => { const x = s.menu.find((y) => y.id === b.dataset.av); act(api('POST', `/api/menu/${x.id}/available`, { available: !x.available })); }));
+  $$('[data-e]', m).forEach((b) => (b.onclick = () => dishForm(s.menu.find((y) => y.id === b.dataset.e))));
+  $$('[data-x]', m).forEach((b) => (b.onclick = () => confirm('Delete this dish?') && act(api('DELETE', `/api/menu/${b.dataset.x}`))));
+  $('#addm').onclick = () => dishForm();
+  $('#addc').onclick = () => modal(`<h3>New category</h3>${field('Name', 'cn')}<label>Kitchen station</label><select id="cs">${s.settings.stations.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select><div class="row" style="margin-top:14px"><button class="btn primary grow" id="ok">Save</button></div>`,
+    (el, close) => ($('#ok', el).onclick = async () => { try { await api('POST', '/api/categories', { name: $('#cn', el).value, station: $('#cs', el).value }); close(); } catch {} }));
+  $('#exp').onclick = () => {
+    const rows = ['category,name,price,diet', ...s.menu.map((x) => [(s.categories.find((c) => c.id === x.categoryId) || {}).name, x.name, x.price, x.diet].map((v) => String(v).replace(/,/g, ' ')).join(','))];
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' })), download: 'menu.csv' }); a.click();
+  };
+  $('#imp').onclick = () => modal(`<h3>CSV import</h3><p class="muted">One dish per line: <code>category,name,price,diet</code> (diet = veg / nonveg / egg). Existing dishes with the same name are updated.</p><textarea id="csv" rows="10" placeholder="Chinese,Gobi Manchurian,130,veg"></textarea><button class="btn primary" id="ok" style="margin-top:12px">Import</button>`,
+    (el, close) => ($('#ok', el).onclick = async () => { try { const r = await api('POST', '/api/menu/import', { csv: $('#csv', el).value }); toast(r.imported + ' rows imported'); close(); } catch {} }));
+}
+function dishForm(x = {}) {
+  const s = S();
+  modal(`<h3>${x.id ? 'Edit' : 'New'} dish</h3>${field('Name', 'dn', x.name)}${field('Price (₹)', 'dp', x.price, 'type="number" min="0"')}
+   <label>Category</label><select id="dc">${s.categories.map((c) => `<option value="${esc(c.id)}" ${c.id === (x.categoryId || menuCat) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+   <label>Type</label><select id="dd">${[['veg', 'Veg'], ['nonveg', 'Non-veg'], ['egg', 'Egg']].map(([k, n]) => `<option value="${k}" ${x.diet === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
+   ${field('Description', 'ds', x.desc)}<button class="btn primary" id="ok" style="margin-top:14px;width:100%">Save</button>`,
+  (el, close) => ($('#ok', el).onclick = async () => { try { await api('POST', '/api/menu', { id: x.id, name: $('#dn', el).value, price: $('#dp', el).value, categoryId: $('#dc', el).value, diet: $('#dd', el).value, desc: $('#ds', el).value }); close(); } catch {} }));
+}
+
+function tables(m) {
+  const s = S();
+  m.innerHTML = `<div class="card"><div class="row"><h3 class="grow">Tables</h3><button class="btn primary" id="at">+ Table</button></div>
+   <div class="tablewrap"><table class="t"><tr><th>Name</th><th>Seats</th><th>Status</th><th></th></tr>${s.tables.map((t) => `<tr><td>${esc(t.name)}</td><td>${t.seats}</td><td>${t.status}</td><td style="text-align:right"><button class="btn small" data-e="${esc(t.id)}">Edit</button> <button class="btn small red" data-x="${esc(t.id)}">Delete</button></td></tr>`).join('')}</table></div></div>`;
+  const form = (t = {}) => modal(`<h3>${t.id ? 'Edit' : 'New'} table</h3>${field('Name', 'tn', t.name || 'Table ' + (s.tables.length + 1))}${field('Seats', 'ts', t.seats || 4, 'type="number" min="1"')}<button class="btn primary" id="ok" style="margin-top:14px;width:100%">Save</button>`,
+    (el, close) => ($('#ok', el).onclick = async () => { try { await api('POST', '/api/tables', { id: t.id, name: $('#tn', el).value, seats: $('#ts', el).value }); close(); } catch {} }));
+  $('#at').onclick = () => form();
+  $$('[data-e]', m).forEach((b) => (b.onclick = () => form(s.tables.find((t) => t.id === b.dataset.e))));
+  $$('[data-x]', m).forEach((b) => (b.onclick = () => confirm('Delete table?') && act(api('DELETE', `/api/tables/${b.dataset.x}`))));
+}
+
+async function staff(m) {
+  let list = []; try { list = await api('GET', '/api/staff'); } catch {}
+  m.innerHTML = `<div class="card"><div class="row"><h3 class="grow">Staff & PINs</h3><button class="btn primary" id="as">+ Staff</button></div>
+   <div class="tablewrap"><table class="t"><tr><th>Name</th><th>Role</th><th>PIN</th><th></th></tr>${list.map((u) => `<tr><td>${esc(u.name)}</td><td><span class="pill">${u.role}</span></td><td>${'•'.repeat(u.pin.length)}</td><td style="text-align:right"><button class="btn small" data-e="${esc(u.id)}">Edit / reset PIN</button> <button class="btn small red" data-x="${esc(u.id)}">Delete</button></td></tr>`).join('')}</table></div>
+   <p class="muted">Admin sees everything · Waiter sees floor &amp; ordering · Kitchen sees the KDS. Change the default PINs before go-live.</p></div>`;
+  const form = (u = {}) => modal(`<h3>${u.id ? 'Edit' : 'New'} staff</h3>${field('Name', 'sn', u.name)}<label>Role</label><select id="sr">${['admin', 'waiter', 'kitchen'].map((r) => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${field('PIN (4-6 digits)', 'sp', u.pin || '', 'inputmode="numeric" maxlength="6"')}<button class="btn primary" id="ok" style="margin-top:14px;width:100%">Save</button>`,
+    (el, close) => ($('#ok', el).onclick = async () => { try { await api('POST', '/api/staff', { id: u.id, name: $('#sn', el).value, role: $('#sr', el).value, pin: $('#sp', el).value }); close(); render(); } catch {} }));
+  $('#as').onclick = () => form();
+  $$('[data-e]', m).forEach((b) => (b.onclick = () => form(list.find((u) => u.id === b.dataset.e))));
+  $$('[data-x]', m).forEach((b) => (b.onclick = async () => { if (confirm('Delete staff member?')) { try { await api('DELETE', `/api/staff/${b.dataset.x}`); render(); } catch {} } }));
+}
+
+async function printers(m) {
+  let d = { printers: [], jobs: [] }; try { d = await api('GET', '/api/printers'); } catch {}
+  const s = S(), badge = { done: 'green', failed: 'red', retrying: 'amber', queued: 'blue', printing: 'blue' };
+  m.innerHTML = `<div class="card"><div class="row"><h3 class="grow">Thermal printers <span class="muted">(ESC/POS, up to 3)</span></h3><button class="btn primary" id="ap" ${d.printers.length >= 3 ? 'disabled' : ''}>+ Printer</button></div>
+   <p class="muted">Enter the printer's LAN IP (port 9100). Leave the IP empty for a <b>virtual printer</b> — output is saved as text in <code>data/prints</code> so you can test without hardware. Each KOT printer picks which kitchen stations it prints.</p>
+   <div class="tablewrap"><table class="t"><tr><th>Name</th><th>Type</th><th>Address</th><th>Paper</th><th>Stations</th><th></th></tr>${d.printers.map((p) => `<tr><td>${esc(p.name)}</td><td><span class="pill">${p.type.toUpperCase()}</span></td><td>${p.host ? esc(p.host) + ':' + p.port : '<span class="muted">virtual</span>'}</td><td>${p.width === 32 ? '58mm' : '80mm'}</td><td class="muted">${p.type === 'kot' ? p.stations.map((x) => esc((s.settings.stations.find((y) => y.id === x) || {}).name || x)).join(', ') : '—'}</td>
+    <td style="text-align:right"><button class="btn small" data-t="${esc(p.id)}">Test print</button> <button class="btn small" data-e="${esc(p.id)}">Edit</button> <button class="btn small red" data-x="${esc(p.id)}">Delete</button></td></tr>`).join('')}</table></div></div>
+   <div class="card"><div class="row"><h3 class="grow">Print queue</h3><button class="btn small" id="rf">Refresh</button></div><p class="muted">Failed jobs retry automatically 3 times; reprint any failed job here.</p>
+   <div class="tablewrap"><table class="t"><tr><th>Time</th><th>Job</th><th>Printer</th><th>Status</th><th>Tries</th><th></th></tr>${d.jobs.slice(0, 30).map((j) => `<tr><td class="muted">${new Date(j.created).toLocaleTimeString()}</td><td>${esc(j.title)}</td><td>${esc((d.printers.find((p) => p.id === j.printerId) || {}).name || '—')}</td><td><span class="pill ${badge[j.status]}">${j.status}</span> <span class="muted">${esc(j.error)}</span></td><td>${j.attempts}</td><td><button class="btn small" data-r="${esc(j.id)}">${j.status === 'done' ? 'Reprint' : 'Retry'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No jobs yet</td></tr>'}</table></div></div>`;
+  $('#rf').onclick = () => printers(m);
+  $$('[data-t]', m).forEach((b) => (b.onclick = async () => { try { await api('POST', `/api/printers/${b.dataset.t}/test`); toast('Test print queued'); setTimeout(() => printers(m), 800); } catch {} }));
+  $$('[data-r]', m).forEach((b) => (b.onclick = async () => { try { await api('POST', `/api/print/jobs/${b.dataset.r}/retry`); setTimeout(() => printers(m), 800); } catch {} }));
+  $$('[data-x]', m).forEach((b) => (b.onclick = async () => { if (confirm('Delete printer?')) { try { await api('DELETE', `/api/printers/${b.dataset.x}`); printers(m); } catch {} } }));
+  const form = (p = {}) => modal(`<h3>${p.id ? 'Edit' : 'New'} printer</h3>${field('Name', 'pn', p.name || '')}
+    <label>Type</label><select id="pt"><option value="kot" ${p.type !== 'bill' ? 'selected' : ''}>KOT (kitchen order ticket)</option><option value="bill" ${p.type === 'bill' ? 'selected' : ''}>Bill / receipt</option></select>
+    ${field('IP address (blank = virtual)', 'ph', p.host || '', 'placeholder="192.168.1.50"')}${field('Port', 'pp', p.port || 9100, 'type="number"')}
+    <label>Paper width</label><select id="pw"><option value="42" ${p.width !== 32 && p.width !== 48 ? 'selected' : ''}>80mm (42 chars)</option><option value="48" ${p.width === 48 ? 'selected' : ''}>80mm small font (48)</option><option value="32" ${p.width === 32 ? 'selected' : ''}>58mm (32 chars)</option></select>
+    <div id="sts"><label>KOT stations</label>${s.settings.stations.map((x) => `<label class="chk"><input type="checkbox" value="${esc(x.id)}" ${(p.stations || []).includes(x.id) ? 'checked' : ''}> ${esc(x.name)}</label>`).join('')}</div>
+    <button class="btn primary" id="ok" style="margin-top:14px;width:100%">Save</button>`,
+  (el, close) => {
+    const sync = () => ($('#sts', el).style.display = $('#pt', el).value === 'kot' ? '' : 'none'); sync(); $('#pt', el).onchange = sync;
+    $('#ok', el).onclick = async () => { try { await api('POST', '/api/printers', { id: p.id, name: $('#pn', el).value, type: $('#pt', el).value, host: $('#ph', el).value, port: $('#pp', el).value, width: $('#pw', el).value, stations: $$('#sts input:checked', el).map((c) => c.value) }); close(); printers(m); } catch {} };
+  });
+  $('#ap').onclick = () => form();
+  $$('[data-e]', m).forEach((b) => (b.onclick = () => form(d.printers.find((p) => p.id === b.dataset.e))));
+}
+
+function settings(m) {
+  const s = S().settings;
+  m.innerHTML = `<div class="card" style="max-width:640px"><h3>Business settings</h3>${field('Restaurant name', 'sname', s.name)}${field('Address', 'sad', s.address)}${field('Phone', 'sph', s.phone)}
+   <div class="row">${field('GSTIN', 'sg', s.gstin)}${field('FSSAI no.', 'sf', s.fssai)}</div>
+   <div class="row">${field('GST % (CGST+SGST)', 'sgp', s.gstPercent, 'type="number" step="0.5"')}${field('Service charge %', 'ssc', s.serviceChargePercent, 'type="number" step="0.5"')}</div>
+   ${field('Receipt footer', 'sfo', s.footer)}<button class="btn primary" id="ok" style="margin-top:14px">Save settings</button></div>`;
+  $('#ok').onclick = async () => { try { await api('POST', '/api/settings', { name: $('#sname').value, address: $('#sad').value, phone: $('#sph').value, gstin: $('#sg').value, fssai: $('#sf').value, gstPercent: $('#sgp').value, serviceChargePercent: $('#ssc').value, footer: $('#sfo').value }); toast('Saved'); } catch {} };
+}
+
+async function reports(m) {
+  let r; try { r = await api('GET', '/api/reports?range=' + range); } catch { return; }
+  const bars = (obj, fmt = rs) => { const e = Object.entries(obj).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...e.map((x) => x[1])); return e.map(([k, v]) => `<div style="margin:8px 0"><div class="row between"><span>${esc(k)}</span><b>${fmt(v)}</b></div><div class="bar" style="width:${(v / mx) * 100}%"></div></div>`).join('') || '<p class="muted">No data</p>'; };
+  m.innerHTML = `<div class="row"><div class="tabs">${[['today', 'Today'], ['week', '7 days'], ['all', 'All']].map(([k, n]) => `<button class="tab ${range === k ? 'on' : ''}" data-r="${k}">${n}</button>`).join('')}</div><div class="grow"></div><button class="btn" id="csv">Export CSV</button></div>
+   <div class="kpis"><div class="card kpi"><span class="muted">Sales (incl. GST)</span><b>${rs(r.gross)}</b></div><div class="card kpi"><span class="muted">Bills</span><b>${r.orders}</b>avg ${rs(r.avgBill)}</div><div class="card kpi"><span class="muted">GST collected</span><b>${rs(r.tax)}</b></div><div class="card kpi"><span class="muted">Discounts</span><b>${rs(r.discounts)}</b></div><div class="card kpi"><span class="muted">Avg prep time</span><b>${r.avgPrepMin}m</b></div></div>
+   <div class="two"><div class="card"><h3>By payment method</h3>${bars(r.byPay)}</div><div class="card"><h3>By category</h3>${bars(r.byCat)}</div><div class="card"><h3>By waiter</h3>${bars(r.byWaiter)}</div>
+   <div class="card"><h3>Top dishes</h3><table class="t">${r.top.map((t) => `<tr><td>${esc(t.name)}</td><td>${t.qty}</td><td style="text-align:right">${rs(t.amt)}</td></tr>`).join('') || '<tr><td class="muted">No sales yet</td></tr>'}</table></div></div>
+   <div class="card"><h3>Audit log</h3><div class="tablewrap"><table class="t">${r.audit.map((a) => `<tr><td class="muted">${new Date(a.t).toLocaleString()}</td><td>${esc(a.user)}</td><td>${esc(a.action)}</td><td class="muted">${esc(a.detail)}</td></tr>`).join('')}</table></div></div>`;
+  $$('[data-r]', m).forEach((b) => (b.onclick = () => { range = b.dataset.r; reports(m); }));
+  $('#csv').onclick = () => {
+    const rows = ['item,qty,amount', ...r.top.map((t) => `"${t.name.replace(/"/g, '""')}",${t.qty},${t.amt}`), '', 'payment,amount', ...Object.entries(r.byPay).map(([k, v]) => `${k},${v}`)];
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' })), download: `report-${range}.csv` }).click();
+  };
+}
+
+let busy = false;
+boot({ roles: ['admin'], onState: async () => {
+  if (busy || document.querySelector('.overlay') || (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName))) return;
+  busy = true; try { await render(); } finally { busy = false; }
+}, onEvent: (e) => e.kind === 'print' && tab === 'print' && !document.querySelector('.overlay') && render() });
+</script></body></html>

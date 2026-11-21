@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flavours Kitchen</title><link rel="stylesheet" href="shared.css">
+<style>
+ main{max-width:860px;margin:0 auto;padding:40px 16px}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:24px}
+ a.tile{text-decoration:none;color:inherit;display:block;transition:.15s}
+ a.tile:hover{border-color:var(--brand);transform:translateY(-2px)}
+ .tile h2{font-size:20px;margin:8px 0 4px;color:var(--brand)} .tile .ic{font-size:34px}
+</style></head><body><main>
+<h1 style="font-size:32px;margin-top:6px">Flavours Kitchen</h1>
+<p class="muted">Tiffins · Meals · Biryanis · Chinese · Curry Point — restaurant management system</p>
+<div class="grid">
+ <a class="card tile" href="waiter.html"><div class="ic">🧾</div><h2>Waiter</h2><div class="muted">Floor map, take orders, ready queue, bill &amp; pay</div></a>
+ <a class="card tile" href="kitchen.html"><div class="ic">👨‍🍳</div><h2>Kitchen Display</h2><div class="muted">Live tickets by station, start / ready / recall, stock toggle</div></a>
+ <a class="card tile" href="admin.html"><div class="ic">⚙️</div><h2>Admin</h2><div class="muted">Menu, tables, staff, printers, settings, reports</div></a>
+</div>
+<p class="muted" style="margin-top:28px">Demo PINs: admin <b>1111</b> · waiter <b>2222</b> · kitchen <b>3333</b></p>
+</main></body></html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Waiter · Flavours Kitchen</title><link rel="stylesheet" href="shared.css">
+<style>
+ .floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:14px}
+ .tb{border-radius:var(--radius);padding:14px;border:2px solid var(--line);background:var(--panel);cursor:pointer;text-align:left;min-height:96px;display:flex;flex-direction:column;justify-content:space-between}
+ .tb b{font-size:18px} .tb.free{border-color:var(--green)} .tb.occupied{border-color:var(--amber);background:#2b2214}
+ .tb.ready{border-color:var(--blue);background:#14232f;animation:glow 1.5s infinite} .tb.bill{border-color:var(--purple);background:#221a2e} .tb.cleaning{border-color:var(--muted);opacity:.7}
+ @keyframes glow{50%{box-shadow:0 0 0 4px rgba(90,169,240,.3)}}
+ .order{display:grid;grid-template-columns:1fr 360px;height:calc(100vh - 62px)}
+ .menu{overflow:auto;padding:12px} .side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+ .cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;position:sticky;top:-12px;background:var(--bg);padding-top:12px;z-index:5}
+ .dishes{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+ .dish{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;text-align:left;min-height:84px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+ .dish:hover{border-color:var(--brand)} .dish.off{opacity:.35;pointer-events:none}
+ .lines{flex:1;overflow:auto;padding:12px}
+ .ln{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+ .qty{display:flex;align-items:center;gap:6px}.qty button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:18px}
+ .tot{padding:12px;border-top:1px solid var(--line);display:grid;gap:8px}
+ .ready-card{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px}
+ @media(max-width:820px){.order{grid-template-columns:1fr;height:auto}.side{border-left:0;border-top:1px solid var(--line);position:sticky;bottom:0;max-height:50vh}.menu{overflow:visible}}
+</style></head><body>
+<div class="topbar">
+ <div class="brand"><span id="logo"></span>Waiter</div>
+ <div class="tabs"><button class="tab on" data-v="floor">Floor</button><button class="tab" data-v="ready">Ready <span id="rc" class="pill blue hidden"></span></button><button class="tab" data-v="take">Takeaway</button><button class="tab" data-v="stats">My shift</button></div>
+ <div class="grow"></div><span id="conn"></span><span class="muted hide-sm" data-user></span><button class="btn small" data-logout>Sign out</button>
+</div>
+<div id="main"></div>
+<script src="shared.js"></script>
+<script>
+$('#logo').innerHTML = LOGO;
+let v = 'floor', cur = null /* {kind:'table'|'take', id} */, cart = [], cat = null, q = '', vegOnly = false, lastReady = -1;
+$$('[data-v]').forEach((b) => (b.onclick = () => { v = b.dataset.v; if (v === 'take') { cur = { kind: 'take' }; cart = []; v = 'order'; } else cur = null; render(); }));
+const S = () => FK.state;
+const tname = (id) => (S().tables.find((t) => t.id === id) || { name: id }).name;
+const curOrder = () => cur && (cur.kind === 'table' ? S().orders.find((o) => o.tableId === cur.id && o.status === 'open') : cur.orderId && S().orders.find((o) => o.id === cur.orderId));
+const stLabel = { free: 'Free', occupied: 'Occupied', ready: 'Food ready', bill: 'Bill requested', cleaning: 'Needs cleaning' };
+
+function render() {
+  const s = S(); if (!s) return;
+  const readyItems = s.orders.filter((o) => o.status === 'open').flatMap((o) => o.items.filter((i) => i.status === 'ready').map((i) => ({ o, i })));
+  $('#rc').textContent = readyItems.length; $('#rc').classList.toggle('hidden', !readyItems.length);
+  $$('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === (v === 'order' ? (cur && cur.kind === 'take' ? 'take' : 'floor') : v)));
+  const m = $('#main');
+  if (v === 'floor') {
+    m.innerHTML = '<div class="floor">' + s.tables.map((t) => {
+      const o = s.orders.find((x) => x.id === t.orderId);
+      return `<button class="tb ${t.status}" data-t="${esc(t.id)}"><div class="row between"><b>${esc(t.name)}</b><span class="muted">${t.seats}🪑</span></div>
+        <div><div class="muted" style="font-size:13px">${stLabel[t.status]}</div>${o ? `<div class="row between"><span>${rs(o.totals.total)}</span><span class="muted">${mins(o.created)}m</span></div>` : ''}</div></button>`;
+    }).join('') + '</div>';
+    $$('[data-t]', m).forEach((b) => (b.onclick = () => {
+      const t = s.tables.find((x) => x.id === b.dataset.t);
+      if (t.status === 'cleaning') { if (confirm(`Mark ${t.name} as cleaned?`)) act(api('POST', `/api/tables/${t.id}/clean`)); return; }
+      cur = { kind: 'table', id: t.id }; cart = []; v = 'order'; render();
+    }));
+  } else if (v === 'ready') {
+    m.innerHTML = '<div style="padding:14px;display:grid;gap:10px;max-width:700px;margin:auto">' + (readyItems.length ? readyItems.map(({ o, i }) => `<div class="card ready-card"><div>${dietDot(i.diet)} <b>${i.qty} × ${esc(i.name)}</b><div class="muted">${o.type === 'takeaway' ? 'Takeaway ' + esc(o.customer) : esc(tname(o.tableId))} · ready ${mins(i.readyAt)}m ago</div></div><button class="btn green" data-s="${esc(o.id)}|${esc(i.id)}">Served</button></div>`).join('') : '<p class="muted" style="text-align:center;padding:60px 0">Nothing waiting to be served</p>') + '</div>';
+    $$('[data-s]', m).forEach((b) => (b.onclick = () => { const [oid, iid] = b.dataset.s.split('|'); act(api('POST', `/api/orders/${oid}/status`, { status: 'served', itemIds: [iid] })); }));
+  } else if (v === 'stats') {
+    const mine = s.orders.filter((o) => o.waiter === FK.user.name && o.status === 'paid');
+    const total = mine.reduce((a, o) => a + o.totals.total, 0);
+    m.innerHTML = `<div style="padding:14px;max-width:600px;margin:auto" class="card"><h2>${esc(FK.user.name)}</h2><p class="muted">Last 36 hours</p>
+      <div class="row wrap"><div class="card grow"><div class="muted">Orders closed</div><h2>${mine.length}</h2></div><div class="card grow"><div class="muted">Sales</div><h2>${rs(total)}</h2></div></div></div>`;
+  } else if (v === 'order') renderOrder(m);
+}
+
+function renderOrder(m) {
+  const s = S(), o = curOrder();
+  if (!cat || !s.categories.find((c) => c.id === cat)) cat = s.categories[0] && s.categories[0].id;
+  const ql = q.trim().toLowerCase();
+  const list = s.menu.filter((x) => (ql ? x.name.toLowerCase().includes(ql) : x.categoryId === cat) && (!vegOnly || x.diet === 'veg'));
+  const title = cur.kind === 'take' ? 'New takeaway' : tname(cur.id);
+  const cartTotal = cart.reduce((a, c) => a + c.price * c.qty, 0);
+  const live = o ? o.items.filter((i) => i.status !== 'void') : [];
+  m.innerHTML = `<div class="order"><div class="menu">
+    <div class="row" style="margin-bottom:8px"><button class="btn small" id="back">← Floor</button><h2 class="grow">${esc(title)}</h2></div>
+    <div class="row" style="margin-bottom:8px"><input id="q" placeholder="Search dishes…" value="${esc(q)}" class="grow"><button class="btn small ${vegOnly ? 'green' : ''}" id="veg">🟢 Veg only</button></div>
+    <div class="cats">${s.categories.map((c) => `<button class="tab ${c.id === cat && !ql ? 'on' : ''}" data-c="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>
+    <div class="dishes">${list.map((x) => `<button class="dish ${x.available ? '' : 'off'}" data-d="${esc(x.id)}"><div>${dietDot(x.diet)} <b>${esc(x.name)}</b></div><div class="row between"><span style="color:var(--brand);font-weight:700">${rs(x.price)}</span>${x.available ? '' : '<span class="pill red">Out</span>'}</div></button>`).join('') || '<p class="muted">No dishes</p>'}</div>
+   </div><div class="side">
+    <div class="lines">
+     ${cur.kind === 'take' && !o ? `<label style="margin-top:0">Customer name / phone</label><input id="cust" placeholder="Optional" value="${esc(cur.customer || '')}">` : ''}
+     <h3 style="margin:10px 0 4px">New items</h3>
+     ${cart.length ? cart.map((c, i) => `<div class="ln"><div class="grow">${dietDot(c.diet)} ${esc(c.name)}<input data-n="${i}" placeholder="Note (less spicy…)" value="${esc(c.note)}" style="margin-top:4px;min-height:32px;padding:4px 8px;font-size:13px"></div>
+        <div class="qty"><button data-m="${i}">−</button><b>${c.qty}</b><button data-p="${i}">+</button></div></div>`).join('') : '<p class="muted">Tap dishes to add</p>'}
+     ${live.length ? `<h3 style="margin:16px 0 4px">Sent to kitchen</h3>${live.map((i) => `<div class="ln"><div class="grow">${dietDot(i.diet)} ${i.qty} × ${esc(i.name)}${i.note ? `<div class="muted" style="font-size:12px">${esc(i.note)}</div>` : ''}</div><span class="pill ${{ new: 'amber', cooking: 'blue', ready: 'green', served: '' }[i.status]}">${i.status}</span>${['new', 'cooking'].includes(i.status) ? `<button class="btn small red" data-v2="${esc(i.id)}" title="Void item">✕</button>` : ''}</div>`).join('')}` : ''}
+    </div>
+    <div class="tot">
+     ${o ? `<div class="row between"><span class="muted">Running bill</span><b>${rs(o.totals.total)}</b></div>` : ''}
+     <button class="btn primary" id="send" ${cart.length ? '' : 'disabled'}>Send to kitchen${cart.length ? ' · ' + rs(cartTotal) : ''}</button>
+     ${o ? `<div class="row"><button class="btn grow" id="bill">Bill / Pay</button>${cur.kind === 'table' ? '<button class="btn grow" id="move">Transfer</button>' : ''}</div>` : ''}
+    </div></div></div>`;
+  $('#back').onclick = () => { v = 'floor'; cur = null; render(); };
+  $('#q').oninput = (e) => { q = e.target.value; const p = e.target.selectionStart; renderOrder(m); const n = $('#q'); n.focus(); n.setSelectionRange(p, p); };
+  $('#veg').onclick = () => { vegOnly = !vegOnly; renderOrder(m); };
+  $$('[data-c]', m).forEach((b) => (b.onclick = () => { cat = b.dataset.c; q = ''; renderOrder(m); }));
+  $$('[data-d]', m).forEach((b) => (b.onclick = () => {
+    const x = s.menu.find((y) => y.id === b.dataset.d), ex = cart.find((c) => c.menuId === x.id && !c.note);
+    if (ex) ex.qty++; else cart.push({ menuId: x.id, name: x.name, price: x.price, diet: x.diet, qty: 1, note: '' }); renderOrder(m);
+  }));
+  $$('[data-p]', m).forEach((b) => (b.onclick = () => { cart[+b.dataset.p].qty++; renderOrder(m); }));
+  $$('[data-m]', m).forEach((b) => (b.onclick = () => { const c = cart[+b.dataset.m]; if (--c.qty < 1) cart.splice(+b.dataset.m, 1); renderOrder(m); }));
+  $$('[data-n]', m).forEach((i) => (i.onchange = () => (cart[+i.dataset.n].note = i.value)));
+  $$('[data-v2]', m).forEach((b) => (b.onclick = () => confirm('Void this item?') && act(api('POST', `/api/orders/${o.id}/status`, { status: 'void', itemIds: [b.dataset.v2] }))));
+  const cu = $('#cust'); if (cu) cu.oninput = () => (cur.customer = cu.value);
+  $('#send').onclick = async () => {
+    try {
+      const r = await api('POST', '/api/orders/send', { type: cur.kind === 'take' ? 'takeaway' : 'dinein', tableId: cur.id, customer: cur.customer, items: cart.map((c) => ({ menuId: c.menuId, qty: c.qty, note: c.note })) });
+      cart = []; if (cur.kind === 'take') cur.orderId = r.orderId; toast('Sent to kitchen · KOT ' + r.kotNo); await refresh();
+    } catch {}
+  };
+  if ($('#bill')) $('#bill').onclick = () => billModal(o.id);
+  if ($('#move')) $('#move').onclick = () => {
+    const free = s.tables.filter((t) => t.status === 'free');
+    modal(`<h3>Transfer ${esc(tname(cur.id))} to</h3><div class="row wrap" style="margin-top:12px">${free.map((t) => `<button class="btn" data-to="${esc(t.id)}">${esc(t.name)}</button>`).join('') || '<span class="muted">No free tables</span>'}</div>`, (el, close) =>
+      $$('[data-to]', el).forEach((b) => (b.onclick = async () => { try { await api('POST', `/api/tables/${cur.id}/transfer`, { to: b.dataset.to }); cur = { kind: 'table', id: b.dataset.to }; close(); await refresh(); } catch {} })));
+  };
+}
+
+function billModal(orderId) {
+  const o = S().orders.find((x) => x.id === orderId); if (!o) return;
+  const t = o.totals, st = S().settings;
+  modal(`<h3>Bill · ${o.type === 'takeaway' ? 'Takeaway' : esc(tname(o.tableId))}</h3>
+   <table class="t" style="margin-top:8px">${o.items.filter((i) => i.status !== 'void').map((i) => `<tr><td>${i.qty} × ${esc(i.name)}</td><td style="text-align:right">${rs(i.price * i.qty)}</td></tr>`).join('')}
+   <tr><td class="muted">Subtotal</td><td style="text-align:right">${rs(t.subtotal)}</td></tr>
+   ${t.discount ? `<tr><td class="muted">Discount</td><td style="text-align:right">−${rs(t.discount)}</td></tr>` : ''}
+   ${t.service ? `<tr><td class="muted">Service ${st.serviceChargePercent}%</td><td style="text-align:right">${rs(t.service)}</td></tr>` : ''}
+   <tr><td class="muted">GST ${st.gstPercent}%</td><td style="text-align:right">${rs(t.gst)}</td></tr>
+   <tr><td><b>Total</b></td><td style="text-align:right"><b style="font-size:20px;color:var(--brand)">${rs(t.total)}</b></td></tr></table>
+   <div class="row" style="margin-top:10px"><input id="disc" type="number" min="0" placeholder="Discount ₹" value="${o.discount || ''}"><button class="btn" id="dbtn">Apply</button></div>
+   <div class="row wrap" style="margin-top:12px"><button class="btn grow" id="pr">🖨 Print bill</button><button class="btn grow" id="bp">Browser print</button><button class="btn grow" id="req">Bill requested</button></div>
+   <label>Take payment</label><div class="row"><button class="btn green grow" data-pay="cash">Cash</button><button class="btn green grow" data-pay="upi">UPI</button><button class="btn green grow" data-pay="card">Card</button></div>`,
+  (el, close) => {
+    $('#dbtn', el).onclick = async () => { try { await api('POST', `/api/orders/${o.id}/discount`, { amount: $('#disc', el).value }); await refresh(); close(); billModal(o.id); } catch {} };
+    $('#pr', el).onclick = async () => { try { const r = await api('POST', `/api/orders/${o.id}/printbill`); toast(r.queued ? 'Bill sent to printer' : 'No bill printer configured', !r.queued); } catch {} };
+    $('#bp', el).onclick = async () => { try { const r = await api('GET', `/api/orders/${o.id}/receipt`); browserPrint(r.text); } catch {} };
+    $('#req', el).onclick = () => act(api('POST', `/api/orders/${o.id}/billreq`)).then(() => { toast('Marked: bill requested'); close(); });
+    $$('[data-pay]', el).forEach((b) => (b.onclick = async () => {
+      if (!confirm(`Take ${rs(t.total)} by ${b.dataset.pay.toUpperCase()}?`)) return;
+      try { await api('POST', `/api/orders/${o.id}/pay`, { method: b.dataset.pay, print: true }); toast('Paid · table needs cleaning'); close(); v = 'floor'; cur = null; await refresh(); } catch {}
+    }));
+  });
+}
+
+boot({ roles: ['waiter', 'admin'], onState: (s) => {
+  const n = s.orders.flatMap((o) => o.items).filter((i) => i.status === 'ready').length;
+  if (lastReady >= 0 && n > lastReady) { toast('🍽 Food is ready to serve'); try { navigator.vibrate && navigator.vibrate(200); } catch {} }
+  lastReady = n;
+  const typing = document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+  if (!typing && !document.querySelector('.overlay')) render();
+} });
+</script></body></html>
